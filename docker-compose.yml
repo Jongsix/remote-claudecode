@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  discord-bot:
+    build:
+      context: .
+      target: production
+    container_name: discord-opencode-relay
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      # 데이터 영속화
+      - ./data:/app/data
+      # 호스트 프로젝트 디렉토리 접근 (읽기 전용)
+      - /Users:/Users:ro
+    stop_grace_period: 10s
+    healthcheck:
+      test: ["CMD", "node", "-e", "console.log('healthy')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

@@ -1,0 +1,123 @@
+import { ButtonInteraction, ThreadChannel } from 'discord.js';
+import * as sessionManager from '../services/sessionManager.js';
+import * as serveManager from '../services/serveManager.js';
+import * as dataStore from '../services/dataStore.js';
+import * as worktreeManager from '../services/worktreeManager.js';
+
+export async function handleButton(interaction: ButtonInteraction) {
+  const customId = interaction.customId;
+  
+  const [action, threadId] = customId.split('_');
+  
+  if (!threadId) {
+    await interaction.reply({
+      content: '❌ Invalid button.',
+      ephemeral: true
+    });
+    return;
+  }
+  
+  if (action === 'interrupt') {
+    await handleInterrupt(interaction, threadId);
+  } else if (action === 'delete') {
+    await handleWorktreeDelete(interaction, threadId);
+  } else if (action === 'pr') {
+    await handleWorktreePR(interaction, threadId);
+  } else {
+    await interaction.reply({
+      content: '❌ Unknown action.',
+      ephemeral: true
+    });
+  }
+}
+
+async function handleInterrupt(interaction: ButtonInteraction, threadId: string) {
+  const session = sessionManager.getSessionForThread(threadId);
+  
+  if (!session) {
+    await interaction.reply({
+      content: '⚠️ Session not found.',
+      ephemeral: true
+    });
+    return;
+  }
+
+  const port = serveManager.getPort(session.projectPath);
+  
+  if (!port) {
+    await interaction.reply({
+      content: '⚠️ Server is not running.',
+      ephemeral: true
+    });
+    return;
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+  
+  const success = await sessionManager.abortSession(port, session.sessionId);
+  
+  if (success) {
+    await interaction.editReply({ content: '⏸️ Interrupt request sent.' });
+  } else {
+    await interaction.editReply({ content: '⚠️ Failed to interrupt. Server may not be running or no active task.' });
+  }
+}
+
+async function handleWorktreeDelete(interaction: ButtonInteraction, threadId: string) {
+  const mapping = dataStore.getWorktreeMapping(threadId);
+  if (!mapping) {
+    await interaction.reply({ content: '⚠️ Worktree mapping not found.', ephemeral: true });
+    return;
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    if (worktreeManager.worktreeExists(mapping.worktreePath)) {
+      await worktreeManager.removeWorktree(mapping.worktreePath, false);
+    }
+
+    dataStore.removeWorktreeMapping(threadId);
+
+    const channel = interaction.channel;
+    if (channel?.isThread()) {
+      await (channel as ThreadChannel).setArchived(true);
+    }
+
+    await interaction.editReply({ content: '✅ Worktree deleted and thread archived.' });
+  } catch (error) {
+    await interaction.editReply({ content: `❌ Failed to delete worktree: ${(error as Error).message}` });
+  }
+}
+
+async function handleWorktreePR(interaction: ButtonInteraction, threadId: string) {
+  const mapping = dataStore.getWorktreeMapping(threadId);
+  if (!mapping) {
+    await interaction.reply({ content: '⚠️ Worktree mapping not found.', ephemeral: true });
+    return;
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    const port = await serveManager.spawnServe(mapping.worktreePath);
+    await serveManager.waitForReady(port);
+
+    let sessionId: string;
+    const existingSession = sessionManager.getSessionForThread(threadId);
+    if (existingSession) {
+      const isValid = await sessionManager.validateSession(port, existingSession.sessionId);
+      sessionId = isValid ? existingSession.sessionId : await sessionManager.createSession(port);
+    } else {
+      sessionId = await sessionManager.createSession(port);
+    }
+    sessionManager.setSessionForThread(threadId, sessionId, mapping.worktreePath, port);
+
+    const prPrompt = `Create a pull request for the current branch. Include a clear title and description summarizing all changes.`;
+    await sessionManager.sendPrompt(port, sessionId, prPrompt);
+
+    await interaction.editReply({ content: '🚀 PR creation started! Check the thread for progress.' });
+  } catch (error) {
+    await interaction.editReply({ content: `❌ Failed to start PR creation: ${(error as Error).message}` });
+  }
+}
