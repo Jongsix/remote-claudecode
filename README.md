@@ -151,18 +151,19 @@ The bot needs specific permissions to function properly. You can configure permi
 4. In **"Bot Permissions"**, select the following:
    
    **General Permissions:**
-   - ✅ **Read Messages/View Channels**
+   - ✅ **View Audit Log**
    
    **Text Permissions:**
    - ✅ **Send Messages**
-   - ✅ **Create Public Threads**
-   - ✅ **Send Messages in Threads**
+   - ✅ **Create Private Threads**
    - ✅ **Embed Links**
    - ✅ **Attach Files**
-   - ✅ **Read Message History**
-   - ✅ **Mention Everyone**
+   - ✅ **Mention @everyone, @here, and All Roles**
+   - ✅ **Use External Emojis**
+   - ✅ **Use External Stickers**
    - ✅ **Add Reactions**
    - ✅ **Use Slash Commands**
+   - ✅ **Create Polls**
 
 5. Copy the generated URL at the bottom — this is your bot invite link!
 
@@ -175,23 +176,24 @@ The bot needs specific permissions to function properly. You can configure permi
 If you're building the URL manually, use this permission value:
 
 ```
-https://discord.com/api/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=2147534848&scope=bot%20applications.commands
+https://discord.com/api/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=218900185540&scope=bot%20applications.commands
 ```
 
-**Permission Breakdown (2147534848):**
+**Permission Breakdown (218900185540):**
 
 | Permission | Value | Purpose |
 |------------|-------|---------|
-| View Channels | 1024 | See channels and messages |
-| Send Messages | 2048 | Send messages to channels |
-| Send Messages in Threads | 274877906944 | Send messages in threads |
-| Create Public Threads | 68719476736 | Create threads for conversations |
-| Embed Links | 16384 | Send rich embeds |
-| Attach Files | 32768 | Upload files |
-| Read Message History | 65536 | Access previous messages |
-| Mention @everyone | 131072 | Mention all members |
-| Add Reactions | 64 | Add emoji reactions |
-| Use Slash Commands | 2147483648 | Register and use slash commands |
+| View Audit Log | 128 | View server audit logs |
+| Send Messages | 2048 | Send messages in channels |
+| Create Private Threads | 68719476736 | Create private threads for worktrees |
+| Embed Links | 16384 | Send rich embed messages |
+| Attach Files | 32768 | Upload files with messages |
+| Mention @everyone, @here | 131072 | Mention all channel members |
+| Use External Emojis | 262144 | Use emojis from other servers |
+| Use External Stickers | 137438953472 | Use stickers from other servers |
+| Add Reactions | 64 | Add emoji reactions to messages |
+| Use Slash Commands | 2147483648 | Use and create slash commands |
+| Create Polls | 256 | Create poll messages |
 
 **Important:** The URL must include `applications.commands` scope for slash commands to work!
 
@@ -211,7 +213,7 @@ https://discord.com/api/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=21
 Use the URL generated in Step 4 (OAuth2 URL Generator), or construct it manually:
 
 ```
-https://discord.com/api/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=2147534848&scope=bot%20applications.commands
+https://discord.com/api/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=218900185540&scope=bot%20applications.commands
 ```
 
 1. Replace `YOUR_CLIENT_ID` with your Application ID
