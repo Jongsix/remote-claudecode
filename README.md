@@ -38,6 +38,12 @@ The bot runs on your development machine alongside OpenCode. When you send a com
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Discord Bot Setup](#discord-bot-setup)
+  - [Step 1: Create Discord Application](#step-1-create-discord-application)
+  - [Step 2: Create Bot & Get Token](#step-2-create-bot--get-token)
+  - [Step 3: Enable Required Intents](#step-3-enable-required-intents)
+  - [Step 4: Configure Bot Permissions](#step-4-configure-bot-permissions)
+  - [Step 5: Get Your Server (Guild) ID](#step-5-get-your-server-guild-id)
+  - [Step 6: Invite Bot to Your Server](#step-6-invite-bot-to-your-server)
 - [CLI Commands](#cli-commands)
 - [Discord Slash Commands](#discord-slash-commands)
 - [Usage Workflow](#usage-workflow)
@@ -131,7 +137,65 @@ Click **"Save Changes"**
 <!-- ![Enable Intents](./docs/images/03-intents.png) -->
 *Screenshot placeholder: Intents section with required toggles enabled*
 
-### Step 4: Get Your Server (Guild) ID
+### Step 4: Configure Bot Permissions
+
+The bot needs specific permissions to function properly. You can configure permissions in two ways:
+
+#### Option A: Using OAuth2 URL Generator (Recommended)
+
+1. Navigate to the **"OAuth2"** section in the sidebar
+2. Click on **"URL Generator"**
+3. In **"Scopes"**, select:
+   - ✅ `bot`
+   - ✅ `applications.commands`
+4. In **"Bot Permissions"**, select the following:
+   
+   **General Permissions:**
+   - ✅ **Read Messages/View Channels**
+   
+   **Text Permissions:**
+   - ✅ **Send Messages**
+   - ✅ **Create Public Threads**
+   - ✅ **Send Messages in Threads**
+   - ✅ **Embed Links**
+   - ✅ **Attach Files**
+   - ✅ **Read Message History**
+   - ✅ **Mention Everyone**
+   - ✅ **Add Reactions**
+   - ✅ **Use Slash Commands**
+
+5. Copy the generated URL at the bottom — this is your bot invite link!
+
+<!-- SCREENSHOT: OAuth2 URL Generator showing selected permissions -->
+<!-- ![OAuth2 Permissions](./docs/images/03b-oauth2-permissions.png) -->
+*Screenshot placeholder: OAuth2 URL Generator with bot permissions selected*
+
+#### Option B: Manual Permission Calculation
+
+If you're building the URL manually, use this permission value:
+
+```
+https://discord.com/api/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=2147534848&scope=bot%20applications.commands
+```
+
+**Permission Breakdown (2147534848):**
+
+| Permission | Value | Purpose |
+|------------|-------|---------|
+| View Channels | 1024 | See channels and messages |
+| Send Messages | 2048 | Send messages to channels |
+| Send Messages in Threads | 274877906944 | Send messages in threads |
+| Create Public Threads | 68719476736 | Create threads for conversations |
+| Embed Links | 16384 | Send rich embeds |
+| Attach Files | 32768 | Upload files |
+| Read Message History | 65536 | Access previous messages |
+| Mention @everyone | 131072 | Mention all members |
+| Add Reactions | 64 | Add emoji reactions |
+| Use Slash Commands | 2147483648 | Register and use slash commands |
+
+**Important:** The URL must include `applications.commands` scope for slash commands to work!
+
+### Step 5: Get Your Server (Guild) ID
 
 1. Open Discord and go to **User Settings → Advanced**
 2. Enable **"Developer Mode"**
@@ -142,12 +206,12 @@ Click **"Save Changes"**
 <!-- ![Copy Server ID](./docs/images/04-guild-id.png) -->
 *Screenshot placeholder: Right-click menu showing "Copy Server ID" option*
 
-### Step 5: Invite Bot to Your Server
+### Step 6: Invite Bot to Your Server
 
-The setup wizard generates an invite URL, or use this format:
+Use the URL generated in Step 4 (OAuth2 URL Generator), or construct it manually:
 
 ```
-https://discord.com/api/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=2147534848&scope=bot
+https://discord.com/api/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=2147534848&scope=bot%20applications.commands
 ```
 
 1. Replace `YOUR_CLIENT_ID` with your Application ID
