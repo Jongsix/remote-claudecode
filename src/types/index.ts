@@ -3,6 +3,7 @@ import type { ChildProcess } from 'node:child_process';
 export interface ProjectConfig {
   alias: string;
   path: string;
+  autoWorktree?: boolean;
 }
 
 export interface ChannelBinding {

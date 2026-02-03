@@ -3,11 +3,13 @@ import {
   ActionRowBuilder, 
   ButtonBuilder, 
   ButtonStyle,
-  ThreadChannel
+  ThreadChannel,
+  EmbedBuilder
 } from 'discord.js';
 import * as dataStore from '../services/dataStore.js';
 import * as sessionManager from '../services/sessionManager.js';
 import * as serveManager from '../services/serveManager.js';
+import * as worktreeManager from '../services/worktreeManager.js';
 import { SSEClient } from '../services/sseClient.js';
 import { formatOutput } from '../utils/messageFormatter.js';
 
@@ -31,7 +33,59 @@ export async function handleMessageCreate(message: Message): Promise<void> {
     return;
   }
   
-  const worktreeMapping = dataStore.getWorktreeMapping(threadId);
+  let worktreeMapping = dataStore.getWorktreeMapping(threadId);
+  
+  // Auto-create worktree if enabled and no mapping exists for this thread
+  if (!worktreeMapping) {
+    const projectAlias = dataStore.getChannelBinding(parentChannelId);
+    if (projectAlias && dataStore.getProjectAutoWorktree(projectAlias)) {
+      try {
+        const branchName = worktreeManager.sanitizeBranchName(
+          `auto/${threadId.slice(0, 8)}-${Date.now()}`
+        );
+        const worktreePath = await worktreeManager.createWorktree(projectPath, branchName);
+        
+        const prompt = message.content.trim();
+        const newMapping = {
+          threadId,
+          branchName,
+          worktreePath,
+          projectPath,
+          description: prompt.slice(0, 50) + (prompt.length > 50 ? '...' : ''),
+          createdAt: Date.now()
+        };
+        dataStore.setWorktreeMapping(newMapping);
+        worktreeMapping = newMapping;
+        
+        const embed = new EmbedBuilder()
+          .setTitle(`🌳 Auto-Worktree: ${branchName}`)
+          .setDescription('Automatically created for this session')
+          .addFields(
+            { name: 'Branch', value: branchName, inline: true },
+            { name: 'Path', value: worktreePath, inline: true }
+          )
+          .setColor(0x2ecc71);
+        
+        const worktreeButtons = new ActionRowBuilder<ButtonBuilder>()
+          .addComponents(
+            new ButtonBuilder()
+              .setCustomId(`delete_${threadId}`)
+              .setLabel('Delete')
+              .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+              .setCustomId(`pr_${threadId}`)
+              .setLabel('Create PR')
+              .setStyle(ButtonStyle.Primary)
+          );
+        
+        await channel.send({ embeds: [embed], components: [worktreeButtons] });
+      } catch (error) {
+        console.error('Auto-worktree creation failed:', error);
+        // Continue with main project path (graceful degradation)
+      }
+    }
+  }
+  
   const effectivePath = worktreeMapping?.worktreePath ?? projectPath;
   
   const existingClient = sessionManager.getSseClient(threadId);

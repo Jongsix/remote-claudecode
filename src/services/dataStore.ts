@@ -208,3 +208,17 @@ export function removePassthroughMode(threadId: string): boolean {
   saveData(data);
   return true;
 }
+
+export function setProjectAutoWorktree(alias: string, enabled: boolean): boolean {
+  const data = loadData();
+  const project = data.projects.find(p => p.alias === alias);
+  if (!project) return false;
+  project.autoWorktree = enabled;
+  saveData(data);
+  return true;
+}
+
+export function getProjectAutoWorktree(alias: string): boolean {
+  const project = getProject(alias);
+  return project?.autoWorktree ?? false;
+}
