@@ -1,17 +1,21 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import pc from 'picocolors';
+import { createRequire } from 'module';
 import { runSetupWizard } from './setup/wizard.js';
 import { deployCommands } from './setup/deploy.js';
 import { startBot } from './bot.js';
 import { hasBotConfig, getConfigDir } from './services/configStore.js';
+
+const require = createRequire(import.meta.url);
+const pkg = require('../../package.json');
 
 const program = new Command();
 
 program
   .name('remote-opencode')
   .description('Discord bot for remote OpenCode CLI access')
-  .version('1.0.0');
+  .version(pkg.version);
 
 program
   .command('start')
