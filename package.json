@@ -1,6 +1,6 @@
 {
   "name": "remote-opencode",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Discord bot for remote OpenCode CLI access",
   "main": "dist/src/index.js",
   "bin": {
@@ -19,7 +19,10 @@
     "dev": "node --loader ts-node/esm src/cli.ts",
     "deploy-commands": "npm run build && node dist/src/cli.js deploy",
     "test": "vitest",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "release": "npm version patch && npm run build && npm publish",
+    "release:minor": "npm version minor && npm run build && npm publish",
+    "release:major": "npm version major && npm run build && npm publish"
   },
   "keywords": [
     "discord",

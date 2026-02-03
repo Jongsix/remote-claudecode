@@ -315,6 +315,40 @@ Bot: ❌ Passthrough mode disabled.
 - ⏳ **Busy indicator** — shows ⏳ reaction if previous task is still running
 - 🔒 **Safe** — ignores bot messages (no infinite loops)
 
+### `/autowork` — Toggle Automatic Worktree Creation
+
+Enable automatic worktree creation for a project. When enabled, new `/opencode` sessions will automatically create isolated git worktrees.
+
+```
+/autowork
+```
+
+**How it works:**
+1. Run `/autowork` in a channel bound to a project
+2. The setting toggles on/off for that project
+3. When enabled, new sessions automatically create worktrees with branch names like `auto/abc12345-1738600000000`
+
+**Example:**
+```
+You: /autowork
+Bot: ✅ Auto-worktree enabled for project myapp.
+     New sessions will automatically create isolated worktrees.
+
+You: /opencode prompt:Add user authentication
+Bot: [Creates thread + auto-worktree]
+     🌳 Auto-Worktree: auto/abc12345-1738600000000
+     [Delete] [Create PR]
+     📌 Prompt: Add user authentication
+     [streaming response...]
+```
+
+**Features:**
+- 🌳 **Automatic isolation** — each session gets its own branch and worktree
+- 📱 **Mobile-friendly** — no need to type `/work` with branch names
+- 🗑️ **Delete button** — removes worktree when done
+- 🚀 **Create PR button** — easily create pull requests from worktree
+- ⚡ **Per-project setting** — enable/disable independently for each project
+
 ---
 
 ## Usage Workflow
@@ -407,16 +441,20 @@ All configuration is stored in `~/.remote-opencode/`:
 
 ```json
 {
-  "projects": {
-    "myapp": "/Users/you/projects/my-app"
-  },
-  "bindings": {
-    "channel-id": "myapp"
-  },
-  "threadSessions": { ... },
-  "worktreeMappings": { ... }
+  "projects": [
+    { "alias": "myapp", "path": "/Users/you/projects/my-app", "autoWorktree": true }
+  ],
+  "bindings": [
+    { "channelId": "channel-id", "projectAlias": "myapp" }
+  ],
+  "threadSessions": [ ... ],
+  "worktreeMappings": [ ... ]
 }
 ```
+
+| Field | Description |
+|-------|-------------|
+| `projects[].autoWorktree` | Optional. When `true`, new sessions auto-create worktrees |
 
 ---
 
