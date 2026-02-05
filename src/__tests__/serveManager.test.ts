@@ -21,7 +21,12 @@ vi.mock('node:net', () => ({
   },
 }));
 
+vi.mock('../services/configStore.js', () => ({
+  getPortConfig: vi.fn(),
+}));
+
 import * as serveManager from '../services/serveManager.js';
+import { getPortConfig } from '../services/configStore.js';
 import { spawn } from 'node:child_process';
 
 const createMockProcess = (): ChildProcess => {
@@ -38,7 +43,7 @@ const createMockProcess = (): ChildProcess => {
 
 describe('serveManager', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
   });
 
   afterEach(() => {
@@ -60,6 +65,7 @@ describe('serveManager', () => {
         ['serve', '--port', port.toString()],
         expect.objectContaining({
           cwd: projectPath,
+          shell: true,
         })
       );
     });
@@ -86,6 +92,20 @@ describe('serveManager', () => {
       expect(spawn).toHaveBeenCalledTimes(2);
     });
 
+    it('should respect custom port range from config', async () => {
+      vi.mocked(spawn).mockImplementation(() => createMockProcess());
+      vi.mocked(getPortConfig).mockReturnValue({ min: 20000, max: 20010 });
+
+      const port = await serveManager.spawnServe('/test/custom-port');
+
+      expect(port).toBe(20000);
+      expect(spawn).toHaveBeenCalledWith(
+        'opencode',
+        ['serve', '--port', '20000'],
+        expect.anything()
+      );
+    });
+
     it('should clean up when process exits', async () => {
       const mockProc = createMockProcess();
       vi.mocked(spawn).mockReturnValue(mockProc);
@@ -97,7 +117,67 @@ describe('serveManager', () => {
 
       mockProc.emit('exit', 0, null);
 
-      expect(serveManager.getPort(projectPath)).toBeUndefined();
+      // Wait for async exit handler
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      // Instance should still exist but be marked as exited
+      const state = serveManager.getInstanceState(projectPath);
+      expect(state?.exited).toBe(true);
+      expect(state?.exitCode).toBe(0);
+    });
+
+    it('should track error message when process exits with non-zero code', async () => {
+      const mockProc = createMockProcess();
+      vi.mocked(spawn).mockReturnValue(mockProc);
+
+      const projectPath = '/test/project';
+      await serveManager.spawnServe(projectPath);
+
+      // Simulate stderr output before exit
+      mockProc.stderr?.emit('data', Buffer.from('Error: opencode command not found'));
+      mockProc.emit('exit', 1, null);
+
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      const state = serveManager.getInstanceState(projectPath);
+      expect(state?.exited).toBe(true);
+      expect(state?.exitCode).toBe(1);
+      expect(state?.exitError).toContain('opencode command not found');
+    });
+
+    it('should track error message when process fails to spawn', async () => {
+      const mockProc = createMockProcess();
+      vi.mocked(spawn).mockReturnValue(mockProc);
+
+      const projectPath = '/test/project';
+      await serveManager.spawnServe(projectPath);
+
+      mockProc.emit('error', new Error('spawn opencode ENOENT'));
+
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      const state = serveManager.getInstanceState(projectPath);
+      expect(state?.exited).toBe(true);
+      expect(state?.exitError).toContain('spawn opencode ENOENT');
+    });
+
+    it('should allow respawning after process exits', async () => {
+      vi.mocked(spawn).mockImplementation(() => createMockProcess());
+
+      const projectPath = '/test/project';
+      const port1 = await serveManager.spawnServe(projectPath);
+
+      // Get the mock process and mark it as exited
+      const mockProc1 = vi.mocked(spawn).mock.results[0].value;
+      mockProc1.emit('exit', 1, null);
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      // Should spawn a new process
+      const port2 = await serveManager.spawnServe(projectPath);
+
+      expect(spawn).toHaveBeenCalledTimes(2);
+      // Port might be the same or different depending on cleanup timing
+      expect(port2).toBeGreaterThanOrEqual(14097);
     });
   });
 
@@ -183,7 +263,7 @@ describe('serveManager', () => {
       await vi.runAllTimersAsync();
       
       await expect(promise).resolves.toBeUndefined();
-      expect(fetch).toHaveBeenCalledWith('http://localhost:14097/session');
+      expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:14097/session');
     });
 
     it('should retry if fetch fails or returns not ok', async () => {
@@ -195,8 +275,8 @@ describe('serveManager', () => {
       const promise = serveManager.waitForReady(14097);
 
       await vi.advanceTimersByTimeAsync(0);
-      await vi.advanceTimersByTimeAsync(500);
-      await vi.advanceTimersByTimeAsync(500);
+      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(1000);
 
       await expect(promise).resolves.toBeUndefined();
       expect(fetch).toHaveBeenCalledTimes(3);
@@ -205,6 +285,44 @@ describe('serveManager', () => {
     it('should throw error on timeout', async () => {
       vi.mocked(fetch).mockRejectedValue(new Error('Connection refused'));
 
+      const promise = serveManager.waitForReady(14097, 1000);
+      
+      const wrappedPromise = expect(promise).rejects.toThrow('Service at port 14097 failed to become ready within 1000ms. Check if \'opencode serve\' is working correctly.');
+
+      await vi.advanceTimersByTimeAsync(1500);
+
+      await wrappedPromise;
+    });
+
+    it('should fail fast when process exits early with error', async () => {
+      vi.useRealTimers();
+      vi.mocked(fetch).mockRejectedValue(new Error('Connection refused'));
+
+      const mockProc = createMockProcess();
+      vi.mocked(spawn).mockReturnValue(mockProc);
+
+      const projectPath = '/test/fast-fail';
+      const port = await serveManager.spawnServe(projectPath);
+
+      // Simulate stderr output and immediate exit
+      mockProc.stderr?.emit('data', Buffer.from('Error: Failed to bind to port'));
+      mockProc.emit('exit', 1, null);
+
+      // Wait for exit handler to process
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      // Now waitForReady should fail fast with the error message
+      await expect(serveManager.waitForReady(port, 30000, projectPath)).rejects.toThrow(
+        'opencode serve failed to start: Error: Failed to bind to port'
+      );
+
+      vi.useFakeTimers();
+    });
+
+    it('should still timeout if no projectPath provided and process exits', async () => {
+      vi.mocked(fetch).mockRejectedValue(new Error('Connection refused'));
+
+      // Without projectPath, can't detect early exit
       const promise = serveManager.waitForReady(14097, 1000);
       
       const wrappedPromise = expect(promise).rejects.toThrow('Service at port 14097 failed to become ready within 1000ms');

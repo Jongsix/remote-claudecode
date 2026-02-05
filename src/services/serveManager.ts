@@ -1,9 +1,10 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { Server } from 'node:net';
 import type { ServeInstance } from '../types/index.js';
+import { getPortConfig } from './configStore.js';
 
-const PORT_MIN = 14097;
-const PORT_MAX = 14200;
+const DEFAULT_PORT_MIN = 14097;
+const DEFAULT_PORT_MAX = 14200;
 
 const instances = new Map<string, ServeInstance>();
 
@@ -21,23 +22,50 @@ function isPortAvailable(port: number): Promise<boolean> {
       });
     });
     
-    server.listen(port);
+    // Bind to 127.0.0.1 explicitly to match opencode serve's default binding
+    server.listen(port, '127.0.0.1');
   });
 }
 
+async function isOrphanedServerRunning(port: number): Promise<boolean> {
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/session`, {
+      signal: AbortSignal.timeout(1000),
+    });
+    // If we get any response, there's already a server running
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function findAvailablePort(): Promise<number> {
-  for (let port = PORT_MIN; port <= PORT_MAX; port++) {
-    const usedPorts = new Set(Array.from(instances.values()).map(i => i.port));
-    if (!usedPorts.has(port) && await isPortAvailable(port)) {
+  const config = getPortConfig();
+  const min = config?.min ?? DEFAULT_PORT_MIN;
+  const max = config?.max ?? DEFAULT_PORT_MAX;
+
+  for (let port = min; port <= max; port++) {
+    const usedPorts = new Set(Array.from(instances.values()).filter(i => !i.exited).map(i => i.port));
+    if (usedPorts.has(port)) {
+      continue;
+    }
+    
+    // Check if there's an orphaned opencode server on this port
+    if (await isOrphanedServerRunning(port)) {
+      continue;
+    }
+    
+    // Check if we can bind to this port
+    if (await isPortAvailable(port)) {
       return port;
     }
   }
-  throw new Error(`No available ports in range ${PORT_MIN}-${PORT_MAX}`);
+  throw new Error(`No available ports in range ${min}-${max}`);
 }
 
 async function isServerResponding(port: number): Promise<boolean> {
   try {
-    const response = await fetch(`http://localhost:${port}/session`, {
+    const response = await fetch(`http://127.0.0.1:${port}/session`, {
       signal: AbortSignal.timeout(2000),
     });
     return response.ok;
@@ -46,72 +74,130 @@ async function isServerResponding(port: number): Promise<boolean> {
   }
 }
 
-function cleanupInstance(projectPath: string): void {
-  instances.delete(projectPath);
+function cleanupInstance(key: string): void {
+  instances.delete(key);
 }
 
-export async function spawnServe(projectPath: string): Promise<number> {
-  const existing = instances.get(projectPath);
-  if (existing) {
+export async function spawnServe(projectPath: string, model?: string): Promise<number> {
+  const key = model ? `${projectPath}:${model}` : projectPath;
+  const existing = instances.get(key);
+  if (existing && !existing.exited) {
     return existing.port;
+  }
+
+  // Clean up any exited instance before spawning a new one
+  if (existing?.exited) {
+    cleanupInstance(key);
   }
 
   const port = await findAvailablePort();
   
-  const child = spawn('opencode', ['serve', '--port', port.toString()], {
+  // Note: opencode serve doesn't support --model flag
+  // Model selection must happen at session/prompt level, not server startup
+  const args = ['serve', '--port', port.toString()];
+  
+  console.log(`[opencode] Spawning: opencode ${args.join(' ')}`);
+  console.log(`[opencode] Working directory: ${projectPath}`);
+  
+  const child = spawn('opencode', args, {
     cwd: projectPath,
     env: { ...process.env },
     stdio: ['inherit', 'pipe', 'pipe'],
+    shell: true,
   });
-
-  child.stdout?.on('data', () => {});
-  child.stderr?.on('data', () => {});
 
   const instance: ServeInstance = {
     port,
     process: child,
     startTime: Date.now(),
+    exited: false,
   };
 
-  instances.set(projectPath, instance);
+  instances.set(key, instance);
 
-  child.on('exit', async () => {
-    const inst = instances.get(projectPath);
+  let stderrBuffer = '';
+  let stdoutBuffer = '';
+
+  child.stdout?.on('data', (data) => {
+    const text = data.toString();
+    stdoutBuffer += text;
+    if (stdoutBuffer.length > 2000) {
+      stdoutBuffer = stdoutBuffer.slice(-2000);
+    }
+    console.log(`[opencode stdout] ${text.trim()}`);
+  });
+  
+  child.stderr?.on('data', (data) => {
+    const text = data.toString();
+    stderrBuffer += text;
+    if (stderrBuffer.length > 2000) {
+      stderrBuffer = stderrBuffer.slice(-2000);
+    }
+    console.error(`[opencode stderr] ${text.trim()}`);
+  });
+
+  child.on('exit', (code) => {
+    const inst = instances.get(key);
     if (inst) {
-      const stillRunning = await isServerResponding(inst.port);
-      if (!stillRunning) {
-        cleanupInstance(projectPath);
+      inst.exited = true;
+      inst.exitCode = code;
+      if (code !== 0 && code !== null) {
+        // Combine stdout and stderr for error message
+        const combinedOutput = (stderrBuffer.trim() || stdoutBuffer.trim());
+        inst.exitError = combinedOutput || `Process exited with code ${code}`;
+        console.error(`[opencode] Process exited with code ${code}`);
+        if (combinedOutput) {
+          console.error(`[opencode] Output: ${combinedOutput}`);
+        }
       }
     }
   });
 
-  child.on('error', () => {
-    cleanupInstance(projectPath);
+  child.on('error', (error) => {
+    console.error(`[opencode] Spawn error: ${error.message}`);
+    const inst = instances.get(key);
+    if (inst) {
+      inst.exited = true;
+      inst.exitError = error.message || 'Failed to spawn opencode process';
+    }
   });
 
   return port;
 }
 
-export function getPort(projectPath: string): number | undefined {
-  return instances.get(projectPath)?.port;
+export function getPort(projectPath: string, model?: string): number | undefined {
+  const key = model ? `${projectPath}:${model}` : projectPath;
+  return instances.get(key)?.port;
 }
 
-export function stopServe(projectPath: string): boolean {
-  const instance = instances.get(projectPath);
+export function stopServe(projectPath: string, model?: string): boolean {
+  const key = model ? `${projectPath}:${model}` : projectPath;
+  const instance = instances.get(key);
   if (!instance) {
     return false;
   }
 
   instance.process.kill();
-  cleanupInstance(projectPath);
+  cleanupInstance(key);
   return true;
 }
 
-export async function waitForReady(port: number, timeout: number = 10000): Promise<void> {
+export async function waitForReady(port: number, timeout: number = 30000, projectPath?: string, model?: string): Promise<void> {
   const start = Date.now();
-  const url = `http://localhost:${port}/session`;
+  const url = `http://127.0.0.1:${port}/session`;
+  const key = projectPath ? (model ? `${projectPath}:${model}` : projectPath) : null;
 
   while (Date.now() - start < timeout) {
+    // Check if the process has exited early
+    if (key) {
+      const instance = instances.get(key);
+      if (instance?.exited) {
+        const errorMsg = instance.exitError || `opencode serve exited with code ${instance.exitCode}`;
+        cleanupInstance(key);
+        throw new Error(`opencode serve failed to start: ${errorMsg}`);
+      }
+    }
+
     try {
       const response = await fetch(url);
       if (response.ok) {
@@ -119,22 +205,43 @@ export async function waitForReady(port: number, timeout: number = 10000): Promi
       }
     } catch {
     }
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 
-  throw new Error(`Service at port ${port} failed to become ready within ${timeout}ms`);
+  // Final check - did the process exit?
+  if (key) {
+    const instance = instances.get(key);
+    if (instance?.exited) {
+      const errorMsg = instance.exitError || `opencode serve exited with code ${instance.exitCode}`;
+      cleanupInstance(key);
+      throw new Error(`opencode serve failed to start: ${errorMsg}`);
+    }
+  }
+
+  throw new Error(`Service at port ${port} failed to become ready within ${timeout}ms. Check if 'opencode serve' is working correctly.`);
 }
 
 export function stopAll(): void {
-  for (const [projectPath, instance] of instances) {
+  for (const [key, instance] of instances) {
     instance.process.kill();
-    cleanupInstance(projectPath);
+    cleanupInstance(key);
   }
 }
 
-export function getAllInstances(): Array<{ projectPath: string; port: number }> {
-  return Array.from(instances.entries()).map(([projectPath, instance]) => ({
-    projectPath,
+export function getAllInstances(): Array<{ key: string; port: number }> {
+  return Array.from(instances.entries()).map(([key, instance]) => ({
+    key,
     port: instance.port,
   }));
+}
+
+export function getInstanceState(projectPath: string, model?: string): { exited: boolean; exitCode?: number | null; exitError?: string } | undefined {
+  const key = model ? `${projectPath}:${model}` : projectPath;
+  const instance = instances.get(key);
+  if (!instance) return undefined;
+  return {
+    exited: instance.exited ?? false,
+    exitCode: instance.exitCode,
+    exitError: instance.exitError,
+  };
 }

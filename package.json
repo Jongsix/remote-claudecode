@@ -1,6 +1,6 @@
 {
   "name": "remote-opencode",
-  "version": "1.0.8",
+  "version": "1.0.10",
   "description": "Discord bot for remote OpenCode CLI access",
   "main": "dist/src/index.js",
   "bin": {
@@ -15,7 +15,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "start": "node dist/src/cli.js",
+    "start": "node --no-deprecation dist/src/cli.js start",
     "dev": "node --loader ts-node/esm src/cli.ts",
     "deploy-commands": "npm run build && node dist/src/cli.js deploy",
     "test": "vitest",

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+process.removeAllListeners('warning');
 import { Command } from 'commander';
 import pc from 'picocolors';
 import { createRequire } from 'module';

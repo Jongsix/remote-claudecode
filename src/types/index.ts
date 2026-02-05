@@ -9,6 +9,7 @@ export interface ProjectConfig {
 export interface ChannelBinding {
   channelId: string;
   projectAlias: string;
+  model?: string;
 }
 
 export interface DataStore {
@@ -17,7 +18,22 @@ export interface DataStore {
   threadSessions?: ThreadSession[];
   worktreeMappings?: WorktreeMapping[];
   passthroughThreads?: PassthroughThread[];
+  queues?: Record<string, QueuedMessage[]>;
+  queueSettings?: Record<string, QueueSettings>;
 }
+
+export interface QueuedMessage {
+  prompt: string;
+  userId: string;
+  timestamp: number;
+}
+
+export interface QueueSettings {
+  paused: boolean;
+  continueOnFailure: boolean;
+  freshContext: boolean;
+}
+
 
 export interface TextPart {
   id: string;
@@ -35,6 +51,9 @@ export interface ServeInstance {
   port: number;
   process: ChildProcess;
   startTime: number;
+  exited?: boolean;
+  exitCode?: number | null;
+  exitError?: string;
 }
 
 export interface ThreadSession {

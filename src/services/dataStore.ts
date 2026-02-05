@@ -1,7 +1,8 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import type { DataStore, ProjectConfig, ChannelBinding, ThreadSession, WorktreeMapping, PassthroughThread } from '../types/index.js';
+import type { DataStore, ProjectConfig, ChannelBinding, ThreadSession, WorktreeMapping, PassthroughThread, QueuedMessage, QueueSettings } from '../types/index.js';
+
 
 const CONFIG_DIR = join(homedir(), '.remote-opencode');
 const DATA_FILE = join(CONFIG_DIR, 'data.json');
@@ -59,15 +60,34 @@ export function removeProject(alias: string): boolean {
   return true;
 }
 
-export function setChannelBinding(channelId: string, projectAlias: string): void {
+export function setChannelBinding(channelId: string, projectAlias: string, model?: string): void {
   const data = loadData();
   const existing = data.bindings.findIndex(b => b.channelId === channelId);
   if (existing >= 0) {
     data.bindings[existing].projectAlias = projectAlias;
+    if (model !== undefined) {
+      data.bindings[existing].model = model;
+    }
   } else {
-    data.bindings.push({ channelId, projectAlias });
+    data.bindings.push({ channelId, projectAlias, model });
   }
   saveData(data);
+}
+
+export function setChannelModel(channelId: string, model: string): boolean {
+  const data = loadData();
+  const existing = data.bindings.findIndex(b => b.channelId === channelId);
+  if (existing >= 0) {
+    data.bindings[existing].model = model;
+    saveData(data);
+    return true;
+  }
+  return false;
+}
+
+export function getChannelModel(channelId: string): string | undefined {
+  const binding = loadData().bindings.find(b => b.channelId === channelId);
+  return binding?.model;
 }
 
 export function getChannelBinding(channelId: string): string | undefined {
@@ -222,3 +242,53 @@ export function getProjectAutoWorktree(alias: string): boolean {
   const project = getProject(alias);
   return project?.autoWorktree ?? false;
 }
+
+// Queue Management
+export function getQueue(threadId: string): QueuedMessage[] {
+  const data = loadData();
+  return data.queues?.[threadId] ?? [];
+}
+
+export function addToQueue(threadId: string, message: QueuedMessage): void {
+  const data = loadData();
+  if (!data.queues) data.queues = {};
+  if (!data.queues[threadId]) data.queues[threadId] = [];
+  data.queues[threadId].push(message);
+  saveData(data);
+}
+
+export function popFromQueue(threadId: string): QueuedMessage | undefined {
+  const data = loadData();
+  if (!data.queues?.[threadId] || data.queues[threadId].length === 0) return undefined;
+  const message = data.queues[threadId].shift();
+  saveData(data);
+  return message;
+}
+
+export function clearQueue(threadId: string): void {
+  const data = loadData();
+  if (data.queues?.[threadId]) {
+    delete data.queues[threadId];
+    saveData(data);
+  }
+}
+
+export function getQueueSettings(threadId: string): QueueSettings {
+  const data = loadData();
+  return data.queueSettings?.[threadId] ?? {
+    paused: false,
+    continueOnFailure: false,
+    freshContext: true
+  };
+}
+
+export function updateQueueSettings(threadId: string, settings: Partial<QueueSettings>): void {
+  const data = loadData();
+  if (!data.queueSettings) data.queueSettings = {};
+  data.queueSettings[threadId] = {
+    ...getQueueSettings(threadId),
+    ...settings
+  };
+  saveData(data);
+}
+

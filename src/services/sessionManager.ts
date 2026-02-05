@@ -4,7 +4,7 @@ import * as dataStore from './dataStore.js';
 const threadSseClients = new Map<string, SSEClient>();
 
 export async function createSession(port: number): Promise<string> {
-  const url = `http://localhost:${port}/session`;
+  const url = `http://127.0.0.1:${port}/session`;
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -24,14 +24,34 @@ export async function createSession(port: number): Promise<string> {
   return data.id;
 }
 
-export async function sendPrompt(port: number, sessionId: string, text: string): Promise<void> {
-  const url = `http://localhost:${port}/session/${sessionId}/prompt_async`;
+function parseModelString(model: string): { providerID: string; modelID: string } | null {
+  const slashIndex = model.indexOf('/');
+  if (slashIndex === -1) {
+    return null;
+  }
+  return {
+    providerID: model.slice(0, slashIndex),
+    modelID: model.slice(slashIndex + 1),
+  };
+}
+
+export async function sendPrompt(port: number, sessionId: string, text: string, model?: string): Promise<void> {
+  const url = `http://127.0.0.1:${port}/session/${sessionId}/prompt_async`;
+  const body: { parts: { type: string; text: string }[]; model?: { providerID: string; modelID: string } } = {
+    parts: [{ type: 'text', text }],
+  };
+  
+  if (model) {
+    const parsedModel = parseModelString(model);
+    if (parsedModel) {
+      body.model = parsedModel;
+    }
+  }
+  
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      parts: [{ type: 'text', text }],
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
@@ -41,7 +61,7 @@ export async function sendPrompt(port: number, sessionId: string, text: string):
 
 export async function validateSession(port: number, sessionId: string): Promise<boolean> {
   try {
-    const url = `http://localhost:${port}/session/${sessionId}`;
+    const url = `http://127.0.0.1:${port}/session/${sessionId}`;
     const response = await fetch(url, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
@@ -54,7 +74,7 @@ export async function validateSession(port: number, sessionId: string): Promise<
 
 export async function listSessions(port: number): Promise<string[]> {
   try {
-    const url = `http://localhost:${port}/session`;
+    const url = `http://127.0.0.1:${port}/session`;
     const response = await fetch(url, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
@@ -76,7 +96,7 @@ export async function listSessions(port: number): Promise<string[]> {
 
 export async function abortSession(port: number, sessionId: string): Promise<boolean> {
   try {
-    const url = `http://localhost:${port}/session/${sessionId}/abort`;
+    const url = `http://127.0.0.1:${port}/session/${sessionId}/abort`;
     const response = await fetch(url, {
       method: 'POST',
     });

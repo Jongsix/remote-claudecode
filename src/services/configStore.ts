@@ -8,8 +8,14 @@ export interface BotConfig {
   guildId: string;
 }
 
+export interface PortConfig {
+  min: number;
+  max: number;
+}
+
 export interface AppConfig {
   bot?: BotConfig;
+  ports?: PortConfig;
 }
 
 const CONFIG_DIR = join(homedir(), '.remote-opencode');
@@ -50,6 +56,16 @@ export function getBotConfig(): BotConfig | undefined {
 export function setBotConfig(bot: BotConfig): void {
   const config = loadConfig();
   config.bot = bot;
+  saveConfig(config);
+}
+
+export function getPortConfig(): PortConfig | undefined {
+  return loadConfig().ports;
+}
+
+export function setPortConfig(ports: PortConfig): void {
+  const config = loadConfig();
+  config.ports = ports;
   saveConfig(config);
 }
 

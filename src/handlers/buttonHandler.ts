@@ -1,4 +1,4 @@
-import { ButtonInteraction, ThreadChannel } from 'discord.js';
+import { ButtonInteraction, ThreadChannel, MessageFlags } from 'discord.js';
 import * as sessionManager from '../services/sessionManager.js';
 import * as serveManager from '../services/serveManager.js';
 import * as dataStore from '../services/dataStore.js';
@@ -12,7 +12,7 @@ export async function handleButton(interaction: ButtonInteraction) {
   if (!threadId) {
     await interaction.reply({
       content: '❌ Invalid button.',
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
@@ -26,7 +26,7 @@ export async function handleButton(interaction: ButtonInteraction) {
   } else {
     await interaction.reply({
       content: '❌ Unknown action.',
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
   }
 }
@@ -37,22 +37,26 @@ async function handleInterrupt(interaction: ButtonInteraction, threadId: string)
   if (!session) {
     await interaction.reply({
       content: '⚠️ Session not found.',
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
 
-  const port = serveManager.getPort(session.projectPath);
+  const channel = interaction.channel;
+  const parentChannelId = channel?.isThread() ? (channel as ThreadChannel).parentId! : channel?.id;
+  const preferredModel = parentChannelId ? dataStore.getChannelModel(parentChannelId) : undefined;
+
+  const port = serveManager.getPort(session.projectPath, preferredModel);
   
   if (!port) {
     await interaction.reply({
       content: '⚠️ Server is not running.',
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return;
   }
 
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   
   const success = await sessionManager.abortSession(port, session.sessionId);
   
@@ -66,11 +70,11 @@ async function handleInterrupt(interaction: ButtonInteraction, threadId: string)
 async function handleWorktreeDelete(interaction: ButtonInteraction, threadId: string) {
   const mapping = dataStore.getWorktreeMapping(threadId);
   if (!mapping) {
-    await interaction.reply({ content: '⚠️ Worktree mapping not found.', ephemeral: true });
+    await interaction.reply({ content: '⚠️ Worktree mapping not found.', flags: MessageFlags.Ephemeral });
     return;
   }
 
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   try {
     if (worktreeManager.worktreeExists(mapping.worktreePath)) {
@@ -93,15 +97,19 @@ async function handleWorktreeDelete(interaction: ButtonInteraction, threadId: st
 async function handleWorktreePR(interaction: ButtonInteraction, threadId: string) {
   const mapping = dataStore.getWorktreeMapping(threadId);
   if (!mapping) {
-    await interaction.reply({ content: '⚠️ Worktree mapping not found.', ephemeral: true });
+    await interaction.reply({ content: '⚠️ Worktree mapping not found.', flags: MessageFlags.Ephemeral });
     return;
   }
 
-  await interaction.deferReply({ ephemeral: true });
+  const channel = interaction.channel;
+  const parentChannelId = channel?.isThread() ? (channel as ThreadChannel).parentId! : channel?.id;
+  const preferredModel = parentChannelId ? dataStore.getChannelModel(parentChannelId) : undefined;
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   try {
-    const port = await serveManager.spawnServe(mapping.worktreePath);
-    await serveManager.waitForReady(port);
+    const port = await serveManager.spawnServe(mapping.worktreePath, preferredModel);
+    await serveManager.waitForReady(port, 30000, mapping.worktreePath, preferredModel);
 
     let sessionId: string;
     const existingSession = sessionManager.getSessionForThread(threadId);
@@ -114,7 +122,7 @@ async function handleWorktreePR(interaction: ButtonInteraction, threadId: string
     sessionManager.setSessionForThread(threadId, sessionId, mapping.worktreePath, port);
 
     const prPrompt = `Create a pull request for the current branch. Include a clear title and description summarizing all changes.`;
-    await sessionManager.sendPrompt(port, sessionId, prPrompt);
+    await sessionManager.sendPrompt(port, sessionId, prPrompt, preferredModel);
 
     await interaction.editReply({ content: '🚀 PR creation started! Check the thread for progress.' });
   } catch (error) {

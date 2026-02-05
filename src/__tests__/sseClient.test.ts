@@ -41,19 +41,19 @@ describe('SSEClient', () => {
 
   describe('connect', () => {
     it('should connect to SSE endpoint', () => {
-      client.connect('http://localhost:3000');
+      client.connect('http://127.0.0.1:3000');
 
-      expect(MockEventSource).toHaveBeenCalledWith('http://localhost:3000/event');
+      expect(MockEventSource).toHaveBeenCalledWith('http://127.0.0.1:3000/event');
     });
 
     it('should set up message event listener', () => {
-      client.connect('http://localhost:3000');
+      client.connect('http://127.0.0.1:3000');
 
       expect(mockEventSourceInstance.addEventListener).toHaveBeenCalledWith('message', expect.any(Function));
     });
 
     it('should set up error event listener', () => {
-      client.connect('http://localhost:3000');
+      client.connect('http://127.0.0.1:3000');
 
       expect(mockEventSourceInstance.addEventListener).toHaveBeenCalledWith('error', expect.any(Function));
     });
@@ -62,7 +62,7 @@ describe('SSEClient', () => {
   describe('onPartUpdated', () => {
     it('should trigger callback for text part updates', () => {
       const callback = vi.fn();
-      client.connect('http://localhost:3000');
+      client.connect('http://127.0.0.1:3000');
       client.onPartUpdated(callback);
 
       const messageHandler = mockEventSourceInstance.addEventListener.mock.calls.find(
@@ -96,7 +96,7 @@ describe('SSEClient', () => {
 
     it('should not trigger callback for non-text parts', () => {
       const callback = vi.fn();
-      client.connect('http://localhost:3000');
+      client.connect('http://127.0.0.1:3000');
       client.onPartUpdated(callback);
 
       const messageHandler = mockEventSourceInstance.addEventListener.mock.calls.find(
@@ -124,7 +124,7 @@ describe('SSEClient', () => {
 
     it('should not trigger callback for non-part-updated events', () => {
       const callback = vi.fn();
-      client.connect('http://localhost:3000');
+      client.connect('http://127.0.0.1:3000');
       client.onPartUpdated(callback);
 
       const messageHandler = mockEventSourceInstance.addEventListener.mock.calls.find(
@@ -147,7 +147,7 @@ describe('SSEClient', () => {
   describe('onSessionIdle', () => {
     it('should trigger callback for session.idle events', () => {
       const callback = vi.fn();
-      client.connect('http://localhost:3000');
+      client.connect('http://127.0.0.1:3000');
       client.onSessionIdle(callback);
 
       const messageHandler = mockEventSourceInstance.addEventListener.mock.calls.find(
@@ -170,7 +170,7 @@ describe('SSEClient', () => {
 
     it('should not trigger callback for non-idle events', () => {
       const callback = vi.fn();
-      client.connect('http://localhost:3000');
+      client.connect('http://127.0.0.1:3000');
       client.onSessionIdle(callback);
 
       const messageHandler = mockEventSourceInstance.addEventListener.mock.calls.find(
@@ -193,7 +193,7 @@ describe('SSEClient', () => {
   describe('onError', () => {
     it('should trigger callback on error', () => {
       const callback = vi.fn();
-      client.connect('http://localhost:3000');
+      client.connect('http://127.0.0.1:3000');
       client.onError(callback);
 
       const errorHandler = mockEventSourceInstance.addEventListener.mock.calls.find(
@@ -209,7 +209,7 @@ describe('SSEClient', () => {
 
   describe('disconnect', () => {
     it('should close the connection', () => {
-      client.connect('http://localhost:3000');
+      client.connect('http://127.0.0.1:3000');
       client.disconnect();
 
       expect(mockEventSourceInstance.close).toHaveBeenCalled();
@@ -222,14 +222,14 @@ describe('SSEClient', () => {
 
   describe('isConnected', () => {
     it('should return true when connected', () => {
-      client.connect('http://localhost:3000');
+      client.connect('http://127.0.0.1:3000');
       mockEventSourceInstance.readyState = 1;
 
       expect(client.isConnected()).toBe(true);
     });
 
     it('should return false when disconnected', () => {
-      client.connect('http://localhost:3000');
+      client.connect('http://127.0.0.1:3000');
       mockEventSourceInstance.readyState = 2;
 
       expect(client.isConnected()).toBe(false);

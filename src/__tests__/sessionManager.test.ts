@@ -33,7 +33,7 @@ describe('SessionManager', () => {
 
       const sessionId = await createSession(3000);
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:3000/session', {
+      expect(mockFetch).toHaveBeenCalledWith('http://127.0.0.1:3000/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: '{}',
@@ -75,12 +75,33 @@ describe('SessionManager', () => {
       await sendPrompt(3000, 'ses_abc123', 'Hello OpenCode');
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:3000/session/ses_abc123/prompt_async',
+        'http://127.0.0.1:3000/session/ses_abc123/prompt_async',
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             parts: [{ type: 'text', text: 'Hello OpenCode' }],
+          }),
+        }
+      );
+    });
+
+    it('should include model in payload when provided', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 204,
+      });
+
+      await sendPrompt(3000, 'ses_abc123', 'Hello OpenCode', 'llm-proxy/ant_gemini-3-flash');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://127.0.0.1:3000/session/ses_abc123/prompt_async',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            parts: [{ type: 'text', text: 'Hello OpenCode' }],
+            model: { providerID: 'llm-proxy', modelID: 'ant_gemini-3-flash' },
           }),
         }
       );
