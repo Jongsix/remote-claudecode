@@ -2,6 +2,9 @@
 
 > Control your AI coding assistant from anywhere — your phone, tablet, or another computer.
 
+![npm](https://img.shields.io/npm/dt/remote-opencode) 📦 Used by developers worldwide — **800+ weekly downloads** on npm 
+
+
 <div align="center">
 <img width="1024" alt="Gemini_Generated_Image_47d5gq47d5gq47d5" src="https://github.com/user-attachments/assets/1defa11d-6195-4a9c-956b-4f87470f6393" />
 </div>
