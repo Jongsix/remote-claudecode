@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.1] - 2026-02-11
+
+### Added
+- **Context Header**: All execution messages now display the current branch name and AI model at the top (e.g. `🌿 feature/dark-mode · 🤖 claude-sonnet-4-20250514`).
+- `getCurrentBranch()` utility in `worktreeManager` to resolve the active git branch via `git rev-parse --abbrev-ref HEAD`.
+- `buildContextHeader()` formatter in `messageFormatter` for consistent header rendering.
+
+### Changed
+- Replaced inline `(Model: ...)` suffix with a dedicated context header line across all 7 message states (Starting, Waiting, Sending, Running, Done, Error-SSE, Error-catch).
+
 ## [1.1.0] - 2026-02-05
 
 ### Added
