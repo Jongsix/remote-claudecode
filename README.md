@@ -40,11 +40,7 @@ The bot runs on your development machine alongside OpenCode. When you send a com
 
 ## Demo
 
-<div align="center">
-<video src="./asset/remote-opencode.mp4" width="100%" controls>
-  Your browser does not support the video tag.
-</video>
-</div>
+https://github.com/user-attachments/assets/b6239cb6-234e-41e2-a4d1-d4dd3e86c7b9
 
 ---
 
@@ -140,17 +136,17 @@ If you prefer manual setup or need to troubleshoot:
 
 ## CLI Commands
 
-| Command                                    | Description                                          |
-| ------------------------------------------ | ---------------------------------------------------- |
-| `remote-opencode`                          | Start the bot (shows setup guide if not configured)  |
-| `remote-opencode setup`                    | Interactive setup wizard — configures bot token, IDs |
-| `remote-opencode start`                    | Start the Discord bot                                |
-| `remote-opencode deploy`                   | Deploy/update slash commands to Discord              |
-| `remote-opencode config`                   | Display current configuration info                   |
-| `remote-opencode allow add <userId>`       | Add a Discord user ID to the allowlist               |
-| `remote-opencode allow remove <userId>`    | Remove a Discord user ID from the allowlist          |
-| `remote-opencode allow list`               | List all user IDs in the allowlist                   |
-| `remote-opencode allow reset`              | Clear the entire allowlist (removes access control)  |
+| Command                                 | Description                                          |
+| --------------------------------------- | ---------------------------------------------------- |
+| `remote-opencode`                       | Start the bot (shows setup guide if not configured)  |
+| `remote-opencode setup`                 | Interactive setup wizard — configures bot token, IDs |
+| `remote-opencode start`                 | Start the Discord bot                                |
+| `remote-opencode deploy`                | Deploy/update slash commands to Discord              |
+| `remote-opencode config`                | Display current configuration info                   |
+| `remote-opencode allow add <userId>`    | Add a Discord user ID to the allowlist               |
+| `remote-opencode allow remove <userId>` | Remove a Discord user ID from the allowlist          |
+| `remote-opencode allow list`            | List all user IDs in the allowlist                   |
+| `remote-opencode allow reset`           | Clear the entire allowlist (removes access control)  |
 
 ---
 
@@ -321,9 +317,9 @@ Manage the user allowlist directly from Discord. This command is only available 
 /allow action:list
 ```
 
-| Parameter | Description                                  |
-| --------- | -------------------------------------------- |
-| `action`  | `add`, `remove`, or `list`                   |
+| Parameter | Description                                   |
+| --------- | --------------------------------------------- |
+| `action`  | `add`, `remove`, or `list`                    |
 | `user`    | Target user (required for `add` and `remove`) |
 
 **Behavior:**
