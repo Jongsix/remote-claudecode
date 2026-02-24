@@ -33,7 +33,7 @@ export function accumulateText(current: string, newText: string): string {
   return current + newText;
 }
 
-interface OpenCodePart {
+interface ClaudeCodePart {
   text?: string;
   type?: string;
   reason?: string;
@@ -45,19 +45,19 @@ interface OpenCodePart {
   };
 }
 
-interface OpenCodeEvent {
+interface ClaudeCodeEvent {
   type: string;
-  part?: OpenCodePart;
+  part?: ClaudeCodePart;
 }
 
-export function parseOpenCodeOutput(buffer: string): string {
+export function parseClaudeOutput(buffer: string): string {
   const lines = buffer.split('\n').filter(line => line.trim());
   const textParts: string[] = [];
-  let lastFinish: OpenCodeEvent | null = null;
+  let lastFinish: ClaudeCodeEvent | null = null;
 
   for (const line of lines) {
     try {
-      const event = JSON.parse(line) as OpenCodeEvent;
+      const event = JSON.parse(line) as ClaudeCodeEvent;
       
       switch (event.type) {
         case 'text':
@@ -97,7 +97,7 @@ export function buildContextHeader(branchName: string, modelName: string): strin
 }
 
 export function formatOutput(buffer: string, maxLength: number = 1900): string {
-  const parsed = parseOpenCodeOutput(buffer);
+  const parsed = parseClaudeOutput(buffer);
   
   if (!parsed.trim()) {
     return '⏳ Processing...';

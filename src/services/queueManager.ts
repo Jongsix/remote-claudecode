@@ -1,11 +1,11 @@
 import { TextBasedChannel } from 'discord.js';
 import * as dataStore from './dataStore.js';
 import { runPrompt } from './executionService.js';
-import * as sessionManager from './sessionManager.js';
+import { getActiveExecution } from './claudeService.js';
 
 export async function processNextInQueue(
-  channel: TextBasedChannel, 
-  threadId: string, 
+  channel: TextBasedChannel,
+  threadId: string,
   parentChannelId: string
 ): Promise<void> {
   const settings = dataStore.getQueueSettings(threadId);
@@ -23,6 +23,6 @@ export async function processNextInQueue(
 }
 
 export function isBusy(threadId: string): boolean {
-  const sseClient = sessionManager.getSseClient(threadId);
-  return !!(sseClient && sseClient.isConnected());
+  const execution = getActiveExecution(threadId);
+  return !!(execution && !execution.completed);
 }

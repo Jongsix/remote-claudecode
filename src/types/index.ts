@@ -1,5 +1,3 @@
-import type { ChildProcess } from 'node:child_process';
-
 export interface ProjectConfig {
   alias: string;
   path: string;
@@ -34,33 +32,11 @@ export interface QueueSettings {
   freshContext: boolean;
 }
 
-
-export interface TextPart {
-  id: string;
-  sessionID: string;
-  messageID: string;
-  text: string;
-}
-
-export interface SSEEvent {
-  type: string;
-  properties: Record<string, unknown>;
-}
-
-export interface ServeInstance {
-  port: number;
-  process: ChildProcess;
-  startTime: number;
-  exited?: boolean;
-  exitCode?: number | null;
-  exitError?: string;
-}
-
 export interface ThreadSession {
   threadId: string;
   sessionId: string;
   projectPath: string;
-  port: number;
+  port: number; // Legacy field, kept for data compatibility
   createdAt: number;
   lastUsedAt: number;
 }

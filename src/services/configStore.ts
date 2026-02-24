@@ -19,7 +19,7 @@ export interface AppConfig {
   allowedUserIds?: string[];
 }
 
-const CONFIG_DIR = join(homedir(), '.remote-opencode');
+const CONFIG_DIR = join(homedir(), '.remote-claudecode');
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 
 function ensureConfigDir(): void {

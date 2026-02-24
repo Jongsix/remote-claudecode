@@ -26,4 +26,4 @@ Describe what you've already tried or looked at:
 
 - **OS**: 
 - **Node.js version**: 
-- **remote-opencode version**: 
+- **remote-claudecode version**:

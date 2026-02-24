@@ -1,124 +1,23 @@
-import type { SSEClient } from './sseClient.js';
 import * as dataStore from './dataStore.js';
+import { interruptExecution } from './claudeService.js';
 
-const threadSseClients = new Map<string, SSEClient>();
+// Session data is stored via dataStore thread sessions.
+// The Claude Agent SDK handles session lifecycle internally.
+// This module provides convenience wrappers for thread-session operations.
 
-export async function createSession(port: number): Promise<string> {
-  const url = `http://127.0.0.1:${port}/session`;
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: '{}',
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to create session: ${response.status} ${response.statusText}`);
-  }
-
-  const data = await response.json();
-
-  if (!data.id) {
-    throw new Error('Invalid session response: missing id');
-  }
-
-  return data.id;
-}
-
-function parseModelString(model: string): { providerID: string; modelID: string } | null {
-  const slashIndex = model.indexOf('/');
-  if (slashIndex === -1) {
-    return null;
-  }
-  return {
-    providerID: model.slice(0, slashIndex),
-    modelID: model.slice(slashIndex + 1),
-  };
-}
-
-export async function sendPrompt(port: number, sessionId: string, text: string, model?: string): Promise<void> {
-  const url = `http://127.0.0.1:${port}/session/${sessionId}/prompt_async`;
-  const body: { parts: { type: string; text: string }[]; model?: { providerID: string; modelID: string } } = {
-    parts: [{ type: 'text', text }],
-  };
-  
-  if (model) {
-    const parsedModel = parseModelString(model);
-    if (parsedModel) {
-      body.model = parsedModel;
-    }
-  }
-  
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to send prompt: ${response.status} ${response.statusText}`);
-  }
-}
-
-export async function validateSession(port: number, sessionId: string): Promise<boolean> {
-  try {
-    const url = `http://127.0.0.1:${port}/session/${sessionId}`;
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
-
-export async function listSessions(port: number): Promise<string[]> {
-  try {
-    const url = `http://127.0.0.1:${port}/session`;
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    });
-    
-    if (!response.ok) {
-      return [];
-    }
-    
-    const data = await response.json();
-    if (Array.isArray(data)) {
-      return data.map((s: { id: string }) => s.id);
-    }
-    return [];
-  } catch {
-    return [];
-  }
-}
-
-export async function abortSession(port: number, sessionId: string): Promise<boolean> {
-  try {
-    const url = `http://127.0.0.1:${port}/session/${sessionId}/abort`;
-    const response = await fetch(url, {
-      method: 'POST',
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
-
-export function getSessionForThread(threadId: string): { sessionId: string; projectPath: string; port: number } | undefined {
+export function getSessionForThread(threadId: string): { sessionId: string; projectPath: string } | undefined {
   const session = dataStore.getThreadSession(threadId);
   if (!session) return undefined;
-  return { sessionId: session.sessionId, projectPath: session.projectPath, port: session.port };
+  return { sessionId: session.sessionId, projectPath: session.projectPath };
 }
 
-export function setSessionForThread(threadId: string, sessionId: string, projectPath: string, port: number): void {
+export function setSessionForThread(threadId: string, sessionId: string, projectPath: string): void {
   const now = Date.now();
   dataStore.setThreadSession({
     threadId,
     sessionId,
     projectPath,
-    port,
+    port: 0, // Legacy field, not used with SDK
     createdAt: now,
     lastUsedAt: now,
   });
@@ -132,14 +31,10 @@ export function clearSessionForThread(threadId: string): void {
   dataStore.clearThreadSession(threadId);
 }
 
-export function setSseClient(threadId: string, client: SSEClient): void {
-  threadSseClients.set(threadId, client);
-}
-
-export function getSseClient(threadId: string): SSEClient | undefined {
-  return threadSseClients.get(threadId);
-}
-
-export function clearSseClient(threadId: string): void {
-  threadSseClients.delete(threadId);
+/**
+ * Abort a running Claude execution for the given thread.
+ * Uses the SDK interrupt mechanism instead of HTTP abort.
+ */
+export async function abortSession(threadId: string): Promise<boolean> {
+  return await interruptExecution(threadId);
 }

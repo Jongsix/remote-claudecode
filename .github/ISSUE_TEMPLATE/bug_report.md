@@ -28,8 +28,8 @@ What actually happened.
 
 - **OS**: [e.g., macOS 14.0, Windows 11, Ubuntu 22.04]
 - **Node.js version**: [e.g., 22.0.0]
-- **remote-opencode version**: [e.g., 1.1.0]
-- **OpenCode version**: [e.g., 0.1.0]
+- **remote-claudecode version**: [e.g., 2.0.0]
+- **Claude Code version**: [e.g., 1.0.0]
 
 ## Logs / Screenshots
 

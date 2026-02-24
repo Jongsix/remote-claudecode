@@ -6,6 +6,7 @@ import {
 } from 'discord.js';
 import * as dataStore from '../services/dataStore.js';
 import { processNextInQueue } from '../services/queueManager.js';
+import { getActiveExecution } from '../services/claudeService.js';
 import type { Command } from './index.js';
 
 export const queue: Command = {
@@ -78,8 +79,8 @@ export const queue: Command = {
       // Try to trigger next if idle
       const parentChannelId = (thread as ThreadChannel).parentId;
       if (parentChannelId) {
-        const sseClient = (await import('../services/sessionManager.js')).getSseClient(threadId);
-        if (!sseClient || !sseClient.isConnected()) {
+        const activeExecution = getActiveExecution(threadId);
+        if (!activeExecution || activeExecution.completed) {
           await processNextInQueue(thread as any, threadId, parentChannelId);
         }
       }

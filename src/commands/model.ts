@@ -4,8 +4,8 @@ import {
   MessageFlags,
   ThreadChannel
 } from 'discord.js';
-import { execSync } from 'node:child_process';
 import * as dataStore from '../services/dataStore.js';
+import { getAvailableModels } from '../services/claudeService.js';
 import type { Command } from './index.js';
 
 function getEffectiveChannelId(interaction: ChatInputCommandInteraction): string {
@@ -39,20 +39,19 @@ export const model: Command = {
     if (subcommand === 'list') {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       try {
-        const output = execSync('opencode models', { encoding: 'utf-8' });
-        const models = output.split('\n').filter(m => m.trim());
-        
+        const models = await getAvailableModels();
+
         if (models.length === 0) {
           await interaction.editReply('No models found.');
           return;
         }
 
-        // Group models by provider
+        // Group models by provider (split model.value on /)
         const groups: Record<string, string[]> = {};
         for (const m of models) {
-          const [provider] = m.split('/');
+          const [provider] = m.value.split('/');
           if (!groups[provider]) groups[provider] = [];
-          groups[provider].push(m);
+          groups[provider].push(m.value);
         }
 
         let response = '### 🤖 Available Models\n\n';
@@ -77,7 +76,7 @@ export const model: Command = {
         }
       } catch (error) {
         console.error('Failed to list models:', error);
-        await interaction.editReply('❌ Failed to retrieve models from OpenCode CLI.');
+        await interaction.editReply('❌ Failed to retrieve models from Claude Code.');
       }
     } else if (subcommand === 'set') {
       const modelName = interaction.options.getString('name', true);

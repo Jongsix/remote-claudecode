@@ -1,10 +1,10 @@
 {
-  "name": "remote-opencode",
-  "version": "1.2.0",
-  "description": "Discord bot for remote OpenCode CLI access",
+  "name": "remote-claudecode",
+  "version": "2.0.0",
+  "description": "Discord bot for remote Claude Code access",
   "main": "dist/src/index.js",
   "bin": {
-    "remote-opencode": "./dist/src/cli.js"
+    "remote-claudecode": "./dist/src/cli.js"
   },
   "files": [
     "dist",
@@ -26,23 +26,24 @@
   },
   "keywords": [
     "discord",
-    "opencode",
+    "claude-code",
+    "claude",
+    "claudecode",
     "cli",
     "remote",
-    "bot"
+    "bot",
+    "ai"
   ],
   "author": "",
   "license": "MIT",
   "type": "module",
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.51",
     "@clack/prompts": "^0.9.1",
-    "@types/eventsource": "^1.1.15",
+    "@rollup/rollup-win32-x64-msvc": "^4.59.0",
     "commander": "^13.1.0",
     "discord.js": "^14.25.1",
-    "eventsource": "^4.1.0",
-    "node-pty": "^1.1.0",
     "open": "^10.1.0",
-    "opencode-antigravity-auth": "^1.4.6",
     "picocolors": "^1.1.1",
     "update-notifier": "^7.3.1"
   },

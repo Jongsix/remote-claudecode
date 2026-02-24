@@ -51,7 +51,7 @@ async function openUrl(url: string): Promise<void> {
 export async function runSetupWizard(): Promise<void> {
   console.clear();
   
-  p.intro(pc.bgCyan(pc.black(' remote-opencode setup ')));
+  p.intro(pc.bgCyan(pc.black(' remote-claudecode setup')));
   
   if (hasBotConfig()) {
     const existing = getBotConfig()!;
@@ -70,7 +70,7 @@ export async function runSetupWizard(): Promise<void> {
   p.note(
     `We'll open the Discord Developer Portal in your browser.\n\n` +
     `1. Click ${pc.bold('"New Application"')}\n` +
-    `2. Give your application a name (e.g., "Remote OpenCode")\n` +
+    `2. Give your application a name (e.g., "Remote Claude Code")\n` +
     `3. Copy the ${pc.bold('Application ID')} from "General Information"`,
     'Step 1: Create Discord Application'
   );
@@ -249,5 +249,5 @@ export async function runSetupWizard(): Promise<void> {
     }
   }
   
-  p.outro(pc.green('Setup complete! Run "remote-opencode start" to start the bot.'));
+  p.outro(pc.green('Setup complete! Run "remote-claudecode start" to start the bot.'));
 }

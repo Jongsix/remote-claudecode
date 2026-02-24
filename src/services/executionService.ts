@@ -1,23 +1,21 @@
-import { 
-  ActionRowBuilder, 
-  ButtonBuilder, 
+import {
+  ActionRowBuilder,
+  ButtonBuilder,
   ButtonStyle,
   Message,
   TextBasedChannel,
   EmbedBuilder
 } from 'discord.js';
 import * as dataStore from './dataStore.js';
-import * as sessionManager from './sessionManager.js';
-import * as serveManager from './serveManager.js';
 import * as worktreeManager from './worktreeManager.js';
-import { SSEClient } from './sseClient.js';
+import { ClaudeExecution, setActiveExecution, clearActiveExecution } from './claudeService.js';
 import { formatOutput, buildContextHeader } from '../utils/messageFormatter.js';
 import { processNextInQueue } from './queueManager.js';
 
 export async function runPrompt(
-  channel: TextBasedChannel, 
-  threadId: string, 
-  prompt: string, 
+  channel: TextBasedChannel,
+  threadId: string,
+  prompt: string,
   parentChannelId: string
 ): Promise<void> {
   const projectPath = dataStore.getChannelProjectPath(parentChannelId);
@@ -25,9 +23,9 @@ export async function runPrompt(
     await (channel as any).send('❌ No project bound to parent channel.');
     return;
   }
-  
+
   let worktreeMapping = dataStore.getWorktreeMapping(threadId);
-  
+
   // Auto-create worktree if enabled and no mapping exists for this thread
   if (!worktreeMapping) {
     const projectAlias = dataStore.getChannelBinding(parentChannelId);
@@ -37,7 +35,7 @@ export async function runPrompt(
           `auto/${threadId.slice(0, 8)}-${Date.now()}`
         );
         const worktreePath = await worktreeManager.createWorktree(projectPath, branchName);
-        
+
         const newMapping = {
           threadId,
           branchName,
@@ -48,7 +46,7 @@ export async function runPrompt(
         };
         dataStore.setWorktreeMapping(newMapping);
         worktreeMapping = newMapping;
-        
+
         const embed = new EmbedBuilder()
           .setTitle(`🌳 Auto-Worktree: ${branchName}`)
           .setDescription('Automatically created for this session')
@@ -57,7 +55,7 @@ export async function runPrompt(
             { name: 'Path', value: worktreePath, inline: true }
           )
           .setColor(0x2ecc71);
-        
+
         const worktreeButtons = new ActionRowBuilder<ButtonBuilder>()
           .addComponents(
             new ButtonBuilder()
@@ -69,21 +67,21 @@ export async function runPrompt(
               .setLabel('Create PR')
               .setStyle(ButtonStyle.Primary)
           );
-        
+
         await (channel as any).send({ embeds: [embed], components: [worktreeButtons] });
       } catch (error) {
         console.error('Auto-worktree creation failed:', error);
       }
     }
   }
-  
+
   const effectivePath = worktreeMapping?.worktreePath ?? projectPath;
   const preferredModel = dataStore.getChannelModel(parentChannelId);
   const modelDisplay = preferredModel ? `${preferredModel}` : 'default';
-  
+
   const branchName = worktreeMapping?.branchName ?? await worktreeManager.getCurrentBranch(effectivePath) ?? 'main';
   const contextHeader = buildContextHeader(branchName, modelDisplay);
-  
+
   const buttons = new ActionRowBuilder<ButtonBuilder>()
     .addComponents(
       new ButtonBuilder()
@@ -91,137 +89,60 @@ export async function runPrompt(
         .setLabel('⏸️ Interrupt')
         .setStyle(ButtonStyle.Secondary)
     );
-  
+
   let streamMessage: Message;
   try {
     streamMessage = await (channel as any).send({
-      content: `${contextHeader}\n📌 **Prompt**: ${prompt}\n\n🚀 Starting OpenCode server...`,
+      content: `${contextHeader}\n📌 **Prompt**: ${prompt}\n\n🚀 Starting Claude Code...`,
       components: [buttons]
     });
   } catch {
     return;
   }
-  
-  let port: number;
-  let sessionId: string;
+
   let updateInterval: NodeJS.Timeout | null = null;
-  let accumulatedText = '';
   let lastContent = '';
   let tick = 0;
   const spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-  
+
   const updateStreamMessage = async (content: string, components: ActionRowBuilder<ButtonBuilder>[]) => {
     try {
       await streamMessage.edit({ content, components });
     } catch {
     }
   };
-  
+
   try {
-    port = await serveManager.spawnServe(effectivePath, preferredModel);
-    
-    await updateStreamMessage(`${contextHeader}\n📌 **Prompt**: ${prompt}\n\n⏳ Waiting for OpenCode server...`, [buttons]);
-    await serveManager.waitForReady(port, 30000, effectivePath, preferredModel);
-    
     const settings = dataStore.getQueueSettings(threadId);
-    
-    // If fresh context is enabled, we always clear the session before starting
+
+    // If fresh context is enabled, clear stored session
     if (settings.freshContext) {
-      sessionManager.clearSessionForThread(threadId);
+      dataStore.clearThreadSession(threadId);
     }
 
-    const existingSession = sessionManager.getSessionForThread(threadId);
-    if (existingSession && existingSession.projectPath === effectivePath) {
-      const isValid = await sessionManager.validateSession(port, existingSession.sessionId);
-      if (isValid) {
-        sessionId = existingSession.sessionId;
-        sessionManager.updateSessionLastUsed(threadId);
-      } else {
-        sessionId = await sessionManager.createSession(port);
-        sessionManager.setSessionForThread(threadId, sessionId, effectivePath, port);
-      }
-    } else {
-      sessionId = await sessionManager.createSession(port);
-      sessionManager.setSessionForThread(threadId, sessionId, effectivePath, port);
-    }
-    
-    const sseClient = new SSEClient();
-    sseClient.connect(`http://127.0.0.1:${port}`);
-    sessionManager.setSseClient(threadId, sseClient);
-    
-    sseClient.onPartUpdated((part) => {
-      accumulatedText = part.text;
-    });
-    
-    sseClient.onSessionIdle(() => {
-      if (updateInterval) {
-        clearInterval(updateInterval);
-        updateInterval = null;
-      }
-      
-      (async () => {
-        try {
-          const formatted = formatOutput(accumulatedText);
-          const disabledButtons = new ActionRowBuilder<ButtonBuilder>()
-            .addComponents(
-              new ButtonBuilder()
-                .setCustomId(`interrupt_${threadId}`)
-                .setLabel('⏸️ Interrupt')
-                .setStyle(ButtonStyle.Secondary)
-                .setDisabled(true)
-            );
-          
-            await updateStreamMessage(
-              `${contextHeader}\n📌 **Prompt**: ${prompt}\n\n\`\`\`\n${formatted}\n\`\`\``,
-              [disabledButtons]
-            );
-            
-            await (channel as any).send({ content: '✅ Done' });
-            
-            sseClient.disconnect();
+    // Look up existing session for this thread
+    const existingSession = dataStore.getThreadSession(threadId);
+    const resumeSessionId = (existingSession && existingSession.projectPath === effectivePath)
+      ? existingSession.sessionId
+      : undefined;
 
-          sessionManager.clearSseClient(threadId);
-          
-          // Trigger next in queue
-          await processNextInQueue(channel, threadId, parentChannelId);
-        } catch (error) {
-          console.error('Error in onSessionIdle:', error);
-        }
-      })();
-    });
-    
-    sseClient.onError((error) => {
-      if (updateInterval) {
-        clearInterval(updateInterval);
-        updateInterval = null;
-      }
-      
-      (async () => {
-        try {
-          await updateStreamMessage(`${contextHeader}\n📌 **Prompt**: ${prompt}\n\n❌ Connection error: ${error.message}`, []);
-          
-          sseClient.disconnect();
-          sessionManager.clearSseClient(threadId);
-          
-          const settings = dataStore.getQueueSettings(threadId);
-          if (settings.continueOnFailure) {
-            await processNextInQueue(channel, threadId, parentChannelId);
-          } else {
-            dataStore.clearQueue(threadId);
-            await (channel as any).send('❌ Execution failed. Queue cleared. Use `/queue settings` to change this behavior.');
-          }
-        } catch {
-        }
-      })();
-    });
-    
+    await updateStreamMessage(
+      `${contextHeader}\n📌 **Prompt**: ${prompt}\n\n📝 Sending prompt to Claude Code...`,
+      [buttons],
+    );
+
+    // Create and start the SDK execution
+    const execution = new ClaudeExecution();
+    setActiveExecution(threadId, execution);
+
+    // Periodic Discord message update (reads accumulatedText from execution)
     updateInterval = setInterval(async () => {
       tick++;
       try {
-        const formatted = formatOutput(accumulatedText);
+        const formatted = formatOutput(execution.accumulatedText);
         const spinnerChar = spinner[tick % spinner.length];
         const newContent = formatted || 'Processing...';
-        
+
         if (newContent !== lastContent || tick % 2 === 0) {
           lastContent = newContent;
           await updateStreamMessage(
@@ -232,24 +153,105 @@ export async function runPrompt(
       } catch {
       }
     }, 1000);
-    
-    await updateStreamMessage(`${contextHeader}\n📌 **Prompt**: ${prompt}\n\n📝 Sending prompt...`, [buttons]);
-    await sessionManager.sendPrompt(port, sessionId, prompt, preferredModel);
-    
+
+    // Start the query (fire-and-forget, callbacks handle lifecycle)
+    execution.start(
+      effectivePath,
+      prompt,
+      { sessionId: resumeSessionId, model: preferredModel ?? undefined },
+      {
+        onSessionInit: (sessionId: string) => {
+          // Store the new session ID for future resume
+          const now = Date.now();
+          dataStore.setThreadSession({
+            threadId,
+            sessionId,
+            projectPath: effectivePath,
+            port: 0, // No port needed with SDK
+            createdAt: now,
+            lastUsedAt: now,
+          });
+        },
+
+        onComplete: async (result) => {
+          if (updateInterval) {
+            clearInterval(updateInterval);
+            updateInterval = null;
+          }
+          clearActiveExecution(threadId);
+
+          try {
+            const formatted = formatOutput(result.text);
+            const disabledButtons = new ActionRowBuilder<ButtonBuilder>()
+              .addComponents(
+                new ButtonBuilder()
+                  .setCustomId(`interrupt_${threadId}`)
+                  .setLabel('⏸️ Interrupt')
+                  .setStyle(ButtonStyle.Secondary)
+                  .setDisabled(true)
+              );
+
+            await updateStreamMessage(
+              `${contextHeader}\n📌 **Prompt**: ${prompt}\n\n\`\`\`\n${formatted}\n\`\`\``,
+              [disabledButtons]
+            );
+
+            // Build cost info string
+            let doneMsg = '✅ Done';
+            if (result.cost !== undefined && result.cost > 0) {
+              doneMsg += ` | 💰 $${result.cost.toFixed(4)}`;
+            }
+            if (result.numTurns !== undefined) {
+              doneMsg += ` | 🔄 ${result.numTurns} turns`;
+            }
+
+            await (channel as any).send({ content: doneMsg });
+
+            // Trigger next in queue
+            await processNextInQueue(channel, threadId, parentChannelId);
+          } catch (error) {
+            console.error('Error in onComplete:', error);
+          }
+        },
+
+        onError: async (error) => {
+          if (updateInterval) {
+            clearInterval(updateInterval);
+            updateInterval = null;
+          }
+          clearActiveExecution(threadId);
+
+          try {
+            await updateStreamMessage(
+              `${contextHeader}\n📌 **Prompt**: ${prompt}\n\n❌ Claude Code error: ${error.message}`,
+              []
+            );
+
+            const settings = dataStore.getQueueSettings(threadId);
+            if (settings.continueOnFailure) {
+              await processNextInQueue(channel, threadId, parentChannelId);
+            } else {
+              dataStore.clearQueue(threadId);
+              await (channel as any).send('❌ Execution failed. Queue cleared. Use `/queue settings` to change this behavior.');
+            }
+          } catch {
+          }
+        },
+      },
+    );
+
   } catch (error) {
     if (updateInterval) {
       clearInterval(updateInterval);
     }
-    
+    clearActiveExecution(threadId);
+
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    await updateStreamMessage(`${contextHeader}\n📌 **Prompt**: ${prompt}\n\n❌ OpenCode execution failed: ${errorMessage}`, []);
-    
-    const client = sessionManager.getSseClient(threadId);
-    if (client) {
-      client.disconnect();
-      sessionManager.clearSseClient(threadId);
-    }
-    
+    await updateStreamMessage(
+      `${contextHeader}\n📌 **Prompt**: ${prompt}\n\n❌ Claude Code execution failed: ${errorMessage}`,
+      []
+    );
+
     const settings = dataStore.getQueueSettings(threadId);
     if (settings.continueOnFailure) {
       await processNextInQueue(channel, threadId, parentChannelId);

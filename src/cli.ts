@@ -25,8 +25,8 @@ updateNotifier({ pkg }).notify({ isGlobal: true });
 const program = new Command();
 
 program
-  .name('remote-opencode')
-  .description('Discord bot for remote OpenCode CLI access')
+  .name('remote-claudecode')
+  .description('Discord bot for remote Claude Code access')
   .version(pkg.version);
 
 program
@@ -35,7 +35,7 @@ program
   .action(async () => {
     if (!hasBotConfig()) {
       console.log(pc.yellow('No bot configuration found.'));
-      console.log(`Run ${pc.cyan('remote-opencode setup')} first to configure your Discord bot.\n`);
+      console.log(`Run ${pc.cyan('remote-claudecode setup')} first to configure your Discord bot.\n`);
       process.exit(1);
     }
     
@@ -61,7 +61,7 @@ program
   .action(async () => {
     if (!hasBotConfig()) {
       console.log(pc.yellow('No bot configuration found.'));
-      console.log(`Run ${pc.cyan('remote-opencode setup')} first.\n`);
+      console.log(`Run ${pc.cyan('remote-claudecode setup')} first.\n`);
       process.exit(1);
     }
     
@@ -133,14 +133,14 @@ allowCmd
 program
   .action(async () => {
     if (!hasBotConfig()) {
-      console.log(pc.bold('\nWelcome to remote-opencode!\n'));
+      console.log(pc.bold('\nWelcome to remote-claudecode!\n'));
       console.log('It looks like this is your first time running the bot.');
-      console.log(`Run ${pc.cyan('remote-opencode setup')} to configure your Discord bot.\n`);
+      console.log(`Run ${pc.cyan('remote-claudecode setup')} to configure your Discord bot.\n`);
       console.log('Available commands:');
-      console.log(`  ${pc.cyan('remote-opencode setup')}   - Interactive setup wizard`);
-      console.log(`  ${pc.cyan('remote-opencode start')}   - Start the bot`);
-      console.log(`  ${pc.cyan('remote-opencode deploy')}  - Deploy slash commands`);
-      console.log(`  ${pc.cyan('remote-opencode config')}  - Show configuration`);
+      console.log(`  ${pc.cyan('remote-claudecode setup')}   - Interactive setup wizard`);
+      console.log(`  ${pc.cyan('remote-claudecode start')}   - Start the bot`);
+      console.log(`  ${pc.cyan('remote-claudecode deploy')}  - Deploy slash commands`);
+      console.log(`  ${pc.cyan('remote-claudecode config')}  - Show configuration`);
       console.log();
       process.exit(0);
     }

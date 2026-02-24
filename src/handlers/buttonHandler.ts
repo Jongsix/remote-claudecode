@@ -1,14 +1,14 @@
 import { ButtonInteraction, ThreadChannel, MessageFlags } from 'discord.js';
 import * as sessionManager from '../services/sessionManager.js';
-import * as serveManager from '../services/serveManager.js';
 import * as dataStore from '../services/dataStore.js';
 import * as worktreeManager from '../services/worktreeManager.js';
+import { runPrompt } from '../services/executionService.js';
 
 export async function handleButton(interaction: ButtonInteraction) {
   const customId = interaction.customId;
-  
+
   const [action, threadId] = customId.split('_');
-  
+
   if (!threadId) {
     await interaction.reply({
       content: '❌ Invalid button.',
@@ -16,7 +16,7 @@ export async function handleButton(interaction: ButtonInteraction) {
     });
     return;
   }
-  
+
   if (action === 'interrupt') {
     await handleInterrupt(interaction, threadId);
   } else if (action === 'delete') {
@@ -32,38 +32,14 @@ export async function handleButton(interaction: ButtonInteraction) {
 }
 
 async function handleInterrupt(interaction: ButtonInteraction, threadId: string) {
-  const session = sessionManager.getSessionForThread(threadId);
-  
-  if (!session) {
-    await interaction.reply({
-      content: '⚠️ Session not found.',
-      flags: MessageFlags.Ephemeral
-    });
-    return;
-  }
-
-  const channel = interaction.channel;
-  const parentChannelId = channel?.isThread() ? (channel as ThreadChannel).parentId! : channel?.id;
-  const preferredModel = parentChannelId ? dataStore.getChannelModel(parentChannelId) : undefined;
-
-  const port = serveManager.getPort(session.projectPath, preferredModel);
-  
-  if (!port) {
-    await interaction.reply({
-      content: '⚠️ Server is not running.',
-      flags: MessageFlags.Ephemeral
-    });
-    return;
-  }
-
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  
-  const success = await sessionManager.abortSession(port, session.sessionId);
-  
+
+  const success = await sessionManager.abortSession(threadId);
+
   if (success) {
     await interaction.editReply({ content: '⏸️ Interrupt request sent.' });
   } else {
-    await interaction.editReply({ content: '⚠️ Failed to interrupt. Server may not be running or no active task.' });
+    await interaction.editReply({ content: '⚠️ No active execution found or interrupt failed.' });
   }
 }
 
@@ -103,26 +79,16 @@ async function handleWorktreePR(interaction: ButtonInteraction, threadId: string
 
   const channel = interaction.channel;
   const parentChannelId = channel?.isThread() ? (channel as ThreadChannel).parentId! : channel?.id;
-  const preferredModel = parentChannelId ? dataStore.getChannelModel(parentChannelId) : undefined;
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   try {
-    const port = await serveManager.spawnServe(mapping.worktreePath, preferredModel);
-    await serveManager.waitForReady(port, 30000, mapping.worktreePath, preferredModel);
-
-    let sessionId: string;
-    const existingSession = sessionManager.getSessionForThread(threadId);
-    if (existingSession) {
-      const isValid = await sessionManager.validateSession(port, existingSession.sessionId);
-      sessionId = isValid ? existingSession.sessionId : await sessionManager.createSession(port);
-    } else {
-      sessionId = await sessionManager.createSession(port);
-    }
-    sessionManager.setSessionForThread(threadId, sessionId, mapping.worktreePath, port);
-
     const prPrompt = `Create a pull request for the current branch. Include a clear title and description summarizing all changes.`;
-    await sessionManager.sendPrompt(port, sessionId, prPrompt, preferredModel);
+
+    // Use runPrompt to execute the PR creation through the normal flow
+    if (channel?.isThread()) {
+      await runPrompt(channel as any, threadId, prPrompt, parentChannelId!);
+    }
 
     await interaction.editReply({ content: '🚀 PR creation started! Check the thread for progress.' });
   } catch (error) {

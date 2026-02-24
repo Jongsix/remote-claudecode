@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import type { DataStore, ProjectConfig, ChannelBinding, ThreadSession, WorktreeMapping, PassthroughThread, QueuedMessage, QueueSettings } from '../types/index.js';
 
 
-const CONFIG_DIR = join(homedir(), '.remote-opencode');
+const CONFIG_DIR = join(homedir(), '.remote-claudecode');
 const DATA_FILE = join(CONFIG_DIR, 'data.json');
 
 function ensureDataDir() {

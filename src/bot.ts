@@ -3,7 +3,6 @@ import pc from 'picocolors';
 import { getBotConfig } from './services/configStore.js';
 import { handleInteraction } from './handlers/interactionHandler.js';
 import { handleMessageCreate } from './handlers/messageHandler.js';
-import * as serveManager from './services/serveManager.js';
 
 export async function startBot(): Promise<void> {
   const config = getBotConfig();
@@ -29,9 +28,6 @@ export async function startBot(): Promise<void> {
   
   function gracefulShutdown(signal: string) {
     console.log(pc.yellow(`\n${signal} received. Shutting down gracefully...`));
-    
-    serveManager.stopAll();
-    console.log(pc.dim('All opencode serve instances stopped.'));
     
     client.destroy();
     console.log(pc.dim('Discord client destroyed.'));
